@@ -80,7 +80,7 @@ public class CustomPhysics : MonoBehaviour
         }
     }
 
-    // Intégration d'Euler
+    // Intégration de position
     private void IntegratePosition(float deltaTime)
     {
         // p(t+Δt) = p(t) + v(t) × Δt
