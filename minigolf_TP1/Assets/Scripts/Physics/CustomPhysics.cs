@@ -9,7 +9,7 @@ public class CustomPhysics : MonoBehaviour
     [SerializeField] private float restitution = 0.7f;              // Coefficient de rebond (0-1)
 
     [Header("Velocity Thresholds")]
-    [SerializeField] private float stopThreshold = 0.01f;           // Seuil d'arrêt (m/s)
+    [SerializeField] private float stopThreshold = PhysicsConstants.VELOCITY_STOP_THRESHOLD;           // Seuil d'arrêt (m/s)
     [SerializeField] private bool useGravity = true;                // Activer la gravité
 
     [Header("Debug")]
@@ -31,7 +31,7 @@ public class CustomPhysics : MonoBehaviour
     void FixedUpdate()
     {
         float deltaTime = Time.fixedDeltaTime;
-        
+
         CalculateAcceleration();
         IntegrateVelocity(deltaTime);
         ApplyDrag(deltaTime);
@@ -45,14 +45,18 @@ public class CustomPhysics : MonoBehaviour
         }
     }
 
+    // Permet de corriger la position depuis l'extérieur (par ex. après détection de collision)
+    public void CorrectPosition(Vector3 correction)
+    {
+        transform.position += correction;
+    }
+
     // L'accélération d'un objet est proportionnelle à la force nette appliquée et inversement proportionnelle à sa masse.
     private void CalculateAcceleration()
     {
         // Fg = mg
         if (useGravity)
-        {
             forceAccumulator += Vector3.down * gravity * mass;
-        }
         // a = ΣF / m
         acceleration = forceAccumulator / mass;
     }
@@ -75,9 +79,7 @@ public class CustomPhysics : MonoBehaviour
         velocity += dragAcceleration * deltaTime;
 
         if (velocity.magnitude < stopThreshold)
-        {
             velocity = Vector3.zero;
-        }
     }
 
     // Intégration de position
@@ -111,20 +113,23 @@ public class CustomPhysics : MonoBehaviour
     public void Reflect(Vector3 normal, float restitutionOverride = -1f)
     {
         float rest = restitution;
-        if (restitutionOverride >= 0) {
+        if (restitutionOverride >= 0)
             rest = restitutionOverride;
-        }
         
         // v'final = (v - 2(v·n)n) × e
         velocity = Vector3.Reflect(velocity, normal) * rest;
     }
 
-    // Stop l'objet
     public void Stop()
     {
         velocity = Vector3.zero;
         acceleration = Vector3.zero;
         forceAccumulator = Vector3.zero;
+    }
+
+    public void SetGravityEnabled(bool enabled)
+    {
+        useGravity = enabled;
     }
 
     void OnDrawGizmos()
