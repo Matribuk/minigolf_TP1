@@ -4,8 +4,8 @@ using UnityEngine;
 public class CollisionDetector : MonoBehaviour
 {
     [Header("Configuration")]
-    [SerializeField] private bool usePredictiveDetection = true;                // Détection pre collision
-    
+    [SerializeField] private bool useCCD = true;                                // Continuous Collision Detection
+
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = true;
     [SerializeField] private bool showCollisionPoints = true;
@@ -33,25 +33,33 @@ public class CollisionDetector : MonoBehaviour
         Debug.Log($"[CollisionDetector] Enregistré: {dynamicShapes.Count} objets dynamiques, {staticShapes.Count} objets statiques");
     }
 
+    // Détection de collisions avec CCD - retourne les collisions triées par TOI
     public List<CollisionInfo> DetectCollisions(CollisionShape shape, Vector3 velocity)
     {
+        return DetectCollisions(shape, velocity, Time.fixedDeltaTime);
+    }
+
+    // Surcharge avec deltaTime personnalisé pour les sous-cycles CCD
+    public List<CollisionInfo> DetectCollisions(CollisionShape shape, Vector3 velocity, float deltaTime)
+    {
         List<CollisionInfo> collisions = new List<CollisionInfo>();
-        
-        float deltaTime = Time.fixedDeltaTime;
+
         totalTestsThisFrame = 0;
-        
-        // Complexité Temporelle $$O(n)$$
-        // TODO : Quadtree
+        collisionsDetectedThisFrame = 0;
+
+        // Complexité Temporelle O(n)
+        // TODO : Quadtree pour optimisation
         foreach (CollisionShape staticShape in staticShapes)
         {
             CollisionInfo collision;
             totalTestsThisFrame++;
 
-            collision = (usePredictiveDetection && velocity.sqrMagnitude > 0.0001f)
+            collision = (useCCD && velocity.sqrMagnitude > PhysicsConstants.PREDICTIVE_VELOCITY_THRESHOLD_SQ)
                 ? shape.TestCollisionPredictive(staticShape, velocity, deltaTime)
                 : shape.TestCollision(staticShape);
-            
-            if (collision.hasCollision) {
+
+            if (collision.hasCollision)
+            {
                 collisions.Add(collision);
                 collisionsDetectedThisFrame++;
 
@@ -59,26 +67,31 @@ public class CollisionDetector : MonoBehaviour
                     Debug.DrawRay(collision.point, collision.normal, Color.red, 0.1f);
             }
         }
-        
+
         foreach (CollisionShape otherShape in dynamicShapes)
         {
             if (otherShape == shape) continue;
-            
+
             CollisionInfo collision;
             totalTestsThisFrame++;
-            
-            collision = (usePredictiveDetection && velocity.sqrMagnitude > 0.0001f)
+
+            collision = (useCCD && velocity.sqrMagnitude > PhysicsConstants.PREDICTIVE_VELOCITY_THRESHOLD_SQ)
                 ? shape.TestCollisionPredictive(otherShape, velocity, deltaTime)
                 : shape.TestCollision(otherShape);
-            
-            if (collision.hasCollision) {
+
+            if (collision.hasCollision)
+            {
                 collisions.Add(collision);
                 collisionsDetectedThisFrame++;
-                
+
                 if (showDebugInfo && showCollisionPoints)
                     Debug.DrawRay(collision.point, collision.normal, Color.yellow, 0.1f);
             }
         }
+
+        // Trier par TOI (collision la plus proche en premier)
+        collisions.Sort((a, b) => a.timeOfImpact.CompareTo(b.timeOfImpact));
+
         return collisions;
     }
 

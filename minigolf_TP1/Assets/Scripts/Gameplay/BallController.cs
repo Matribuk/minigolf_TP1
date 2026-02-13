@@ -45,29 +45,93 @@ public class BallController : MonoBehaviour
     void FixedUpdate()
     {
         if (hasWon) return;
-        
-        if (!physics.IsMoving) {
+
+        if (!physics.IsMoving)
+        {
             totalBouncesThisShot = 0;
             return;
         }
-        
-        List<CollisionInfo> collisions = collisionDetector.DetectCollisions(
-            collisionShape, 
-            physics.Velocity
-        );
-        
-        totalCollisionsThisFrame = collisions.Count;
 
-        if (enableCollisionResponse && collisions.Count > 0) {
-            if (collisions.Count == 1) {
-                HandleCollision(collisions[0]);
-            } else {
-                HandleMultipleCollisions(collisions);
+        // CCD: Boucle de sous-cycles pour gérer les collisions multiples dans un frame
+        float remainingTime = 1.0f;  // Fraction du frame restante (0-1)
+        totalCollisionsThisFrame = 0;
+
+        for (int iteration = 0; iteration < PhysicsConstants.CCD_MAX_ITERATIONS && remainingTime > PhysicsConstants.CCD_MIN_REMAINING_TIME; iteration++)
+        {
+            float subDeltaTime = remainingTime * Time.fixedDeltaTime;
+
+            // Détecter les collisions pour le temps restant
+            List<CollisionInfo> collisions = collisionDetector.DetectCollisions(
+                collisionShape,
+                physics.Velocity,
+                subDeltaTime
+            );
+
+            // Pas de collision - déplacer la balle pour le temps restant et sortir
+            if (collisions.Count == 0)
+            {
+                transform.position += physics.Velocity * subDeltaTime;
+                remainingTime = 0f;  // Marquer comme terminé
+                break;
+            }
+
+            // Prendre la première collision (la plus proche grâce au tri par TOI)
+            CollisionInfo collision = collisions[0];
+            totalCollisionsThisFrame++;
+
+            // Si TOI > 0, avancer jusqu'au point de collision
+            if (collision.timeOfImpact > PhysicsConstants.CCD_TOI_EPSILON)
+            {
+                float moveTime = collision.timeOfImpact * subDeltaTime;
+                transform.position += physics.Velocity * moveTime;
+            }
+
+            // Gérer la collision
+            if (!enableCollisionResponse)
+            {
+                remainingTime = 0f;
+                break;
+            }
+
+            if (collision.otherShape.IsTrigger)
+            {
+                HandleTrigger(collision);
+                // Pour les triggers, on continue sans changer la vélocité
+                remainingTime -= collision.timeOfImpact * remainingTime;
+                continue;
+            }
+
+            // Collision physique
+            float speed = physics.Speed;
+
+            // Correction de pénétration - toujours pousser légèrement hors du mur
+            float pushOut = Mathf.Max(collision.penetrationDepth, 0.01f);
+            transform.position += collision.normal * pushOut;
+
+            // Vitesse trop faible - arrêter
+            if (speed < minBounceVelocity)
+            {
+                physics.Stop();
+                physics.SetGravityEnabled(false);
+                remainingTime = 0f;
+                break;
+            }
+
+            // Rebond
+            physics.Reflect(collision.normal);
+            totalBouncesThisShot++;
+
+            // Temps restant après cette collision
+            remainingTime -= collision.timeOfImpact * remainingTime;
+
+            // Petit déplacement après rebond pour éviter re-collision immédiate
+            if (remainingTime > PhysicsConstants.CCD_MIN_REMAINING_TIME)
+            {
+                float smallStep = Mathf.Min(0.01f, remainingTime * Time.fixedDeltaTime);
+                transform.position += physics.Velocity.normalized * smallStep;
             }
         }
-        
-        if (showDebugInfo && totalCollisionsThisFrame > 0)
-            Debug.Log($"[BallController] {totalCollisionsThisFrame} collision(s) ce frame");
+
     }
 
     private void HandleCollision(CollisionInfo collision)
@@ -202,18 +266,11 @@ public class BallController : MonoBehaviour
         if (Keyboard.current == null) return;
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame) {
-            if (physics.IsMoving) {
-                if (showDebugInfo)
-                    Debug.Log("[BallController] Impossible de frapper - balle en mouvement!");
-            } else {
-                Vector3 hitDirection = transform.forward;
-                float hitPower = 2f;
+            Vector3 hitDirection = transform.forward;
+            float hitPower = 6f;
 
-                physics.SetGravityEnabled(true);
-                physics.AddImpulse(hitDirection * hitPower);
-
-                Debug.Log($"[BallController] Frappe ! Direction: {hitDirection}, Puissance: {hitPower}");
-            }
+            physics.SetGravityEnabled(true);
+            physics.AddImpulse(hitDirection * hitPower);
         }
 
         if (Keyboard.current.rKey.wasPressedThisFrame) {

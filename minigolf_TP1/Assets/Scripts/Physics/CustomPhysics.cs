@@ -12,6 +12,9 @@ public class CustomPhysics : MonoBehaviour
     [SerializeField] private float stopThreshold = PhysicsConstants.VELOCITY_STOP_THRESHOLD;           // Seuil d'arrêt (m/s)
     [SerializeField] private bool useGravity = true;                // Activer la gravité
 
+    [Header("Integration")]
+    [SerializeField] private bool integratePosition = false;        // Désactivé: BallController gère le mouvement avec CCD
+
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = true;
 
@@ -35,7 +38,10 @@ public class CustomPhysics : MonoBehaviour
         CalculateAcceleration();
         IntegrateVelocity(deltaTime);
         ApplyDrag(deltaTime);
-        IntegratePosition(deltaTime);
+
+        // Position intégrée par BallController avec CCD si integratePosition est false
+        if (integratePosition)
+            IntegratePosition(deltaTime);
 
         forceAccumulator = Vector3.zero;
 
