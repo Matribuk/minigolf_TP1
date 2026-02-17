@@ -10,13 +10,14 @@ public class BallController : MonoBehaviour
     [SerializeField] private CollisionDetector collisionDetector;
     
     [Header("Collision Response Settings")]
-    [SerializeField] private float minBounceVelocity = 0.5f;       // Vitesse min pour rebondir
+    [SerializeField] private float minBounceVelocity = 0.2f;       // Vitesse min pour rebondir
     [SerializeField] private bool enableCollisionResponse = true;
     
     [Header("Gameplay")]
     [SerializeField] private Vector3 startPosition;                // Position de départ
     [SerializeField] private bool hasWon = false;
-    
+    [SerializeField] private float hitPower = 2f;
+
     [Header("Debug")]
     [SerializeField] private bool showDebugInfo = true;
 
@@ -49,6 +50,16 @@ public class BallController : MonoBehaviour
         if (!physics.IsMoving)
         {
             totalBouncesThisShot = 0;
+            return;
+        }
+
+        // Stop ball if velocity is too low
+        if (physics.Speed < minBounceVelocity)
+        {
+            physics.Stop();
+            physics.SetGravityEnabled(false);
+            if (showDebugInfo)
+                Debug.Log($"[BallController] Balle arrêtée (vitesse trop faible: {physics.Speed:F2} m/s)");
             return;
         }
 
@@ -265,14 +276,6 @@ public class BallController : MonoBehaviour
     {
         if (Keyboard.current == null) return;
 
-        if (Keyboard.current.spaceKey.wasPressedThisFrame) {
-            Vector3 hitDirection = transform.forward;
-            float hitPower = 6f;
-
-            physics.SetGravityEnabled(true);
-            physics.AddImpulse(hitDirection * hitPower);
-        }
-
         if (Keyboard.current.rKey.wasPressedThisFrame) {
             ResetBall();
             Debug.Log("[BallController] Reset manuel");
@@ -282,20 +285,66 @@ public class BallController : MonoBehaviour
             showDebugInfo = !showDebugInfo;
             Debug.Log($"[BallController] Debug: {showDebugInfo}");
         }
+
+        // Block input while ball is moving
+        if (physics.IsMoving) return;
+
+        // up arrow
+        if (Keyboard.current.upArrowKey.wasPressedThisFrame) {
+            // go front
+            Vector3 hitDirection = transform.forward;
+
+            physics.SetGravityEnabled(true);
+            physics.AddImpulse(hitDirection * hitPower);
+            return;
+        }
+        // down arrow
+        if (Keyboard.current.downArrowKey.wasPressedThisFrame) {
+            // go back
+            Vector3 hitDirection = -transform.forward;
+
+            physics.SetGravityEnabled(true);
+            physics.AddImpulse(hitDirection * hitPower);
+            return;
+        }
+        // left arrow
+        if (Keyboard.current.leftArrowKey.wasPressedThisFrame) {
+            // go left
+            Vector3 hitDirection = -transform.right;
+
+            physics.SetGravityEnabled(true);
+            physics.AddImpulse(hitDirection * hitPower);
+            return;
+        }
+        // right arrow
+        if (Keyboard.current.rightArrowKey.wasPressedThisFrame) {
+            // go right
+            Vector3 hitDirection = transform.right;
+
+            physics.SetGravityEnabled(true);
+            physics.AddImpulse(hitDirection * hitPower);
+            return;
+        }
     }
 
     void OnGUI()
     {
         if (!showDebugInfo) return;
         
-        GUILayout.BeginArea(new Rect(10, 10, 300, 200));
+        GUILayout.BeginArea(new Rect(10, 10, 300, 280));
         GUILayout.Label($"Vitesse: {physics.Speed:F2} m/s");
         GUILayout.Label($"En mouvement: {physics.IsMoving}");
         GUILayout.Label($"Collisions ce frame: {totalCollisionsThisFrame}");
         GUILayout.Label($"Rebonds total: {totalBouncesThisShot}");
         GUILayout.Label($"Victoire: {hasWon}");
         GUILayout.Label("");
-        GUILayout.Label("ESPACE = Frapper");
+        
+        GUILayout.Label($"Hit Power: {hitPower:F1}");
+        GUILayout.Label("Puissance (Drag to adjust):");
+        hitPower = GUILayout.HorizontalSlider(hitPower, 1f, 9f, GUILayout.Width(250));
+        
+        GUILayout.Label("");
+        GUILayout.Label("↑↓←→ = Directions");
         GUILayout.Label("R = Reset");
         GUILayout.Label("D = Toggle Debug");
         GUILayout.EndArea();
