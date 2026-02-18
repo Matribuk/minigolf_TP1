@@ -50,6 +50,7 @@ public class BallController : MonoBehaviour
         if (!physics.IsMoving)
         {
             totalBouncesThisShot = 0;
+            // Ball is idle - no collision detection needed, but gravity will still be applied by CustomPhysics
             return;
         }
 
@@ -89,6 +90,9 @@ public class BallController : MonoBehaviour
             // Prendre la première collision (la plus proche grâce au tri par TOI)
             CollisionInfo collision = collisions[0];
             totalCollisionsThisFrame++;
+            
+            if (showDebugInfo)
+                Debug.Log($"[BallController] Collision #{totalCollisionsThisFrame} with: {collision.otherShape.gameObject.name}, Normal: {collision.normal}, Depth: {collision.penetrationDepth:F3}, TOI: {collision.timeOfImpact:F3}");
 
             // Si TOI > 0, avancer jusqu'au point de collision
             if (collision.timeOfImpact > PhysicsConstants.CCD_TOI_EPSILON)
@@ -120,13 +124,30 @@ public class BallController : MonoBehaviour
             float pushOut = Mathf.Max(collision.penetrationDepth, 0.01f);
             transform.position += collision.normal * pushOut;
 
-            // Vitesse trop faible - arrêter
+            // Vitesse trop faible - arrêter SEULEMENT si c'est une surface horizontale
             if (speed < minBounceVelocity)
             {
-                physics.Stop();
-                physics.SetGravityEnabled(false);
-                remainingTime = 0f;
-                break;
+                // Check if collision normal is roughly horizontal (ground-like)
+                // If Y > 0.7, it's a near-vertical surface, allow the ball to rest
+                bool isGroundCollision = collision.normal.y > 0.7f;
+                
+                if (showDebugInfo)
+                    Debug.Log($"[BallController] Low speed: {speed:F3} < {minBounceVelocity}. Normal.y: {collision.normal.y:F3}, IsGround: {isGroundCollision}");
+                
+                if (isGroundCollision)
+                {
+                    if (showDebugInfo)
+                        Debug.Log($"[BallController] Stopping ball on ground.");
+                    physics.Stop();
+                    physics.SetGravityEnabled(false);
+                    remainingTime = 0f;
+                    break;
+                }
+                else
+                {
+                    if (showDebugInfo)
+                        Debug.Log($"[BallController] Low speed on tilted surface, NOT stopping - letting gravity/slope continue.");
+                }
             }
 
             // Rebond
@@ -135,6 +156,14 @@ public class BallController : MonoBehaviour
 
             // Temps restant après cette collision
             remainingTime -= collision.timeOfImpact * remainingTime;
+            
+            // Safety check: if remainingTime didn't decrease (TOI was 0), force a small advancement to avoid infinite loops
+            if (remainingTime == 1.0f - collision.timeOfImpact * 1.0f && collision.timeOfImpact == 0f)
+            {
+                remainingTime *= 0.9f;  // Consume 10% of remaining time to advance
+                if (showDebugInfo)
+                    Debug.Log($"[BallController] TOI was 0, advancing time: remainingTime now {remainingTime:F3}");
+            }
 
             // Petit déplacement après rebond pour éviter re-collision immédiate
             if (remainingTime > PhysicsConstants.CCD_MIN_REMAINING_TIME)

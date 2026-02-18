@@ -3,26 +3,27 @@ using UnityEngine;
 public class PlaneCollisionShape : CollisionShape
 {
     [Header("Plane Properties")]
-    [SerializeField] private Vector3 normal = Vector3.up;                // Normale du plan
+    [SerializeField] private Vector3 localNormal = Vector3.up;           // Normale locale du plan (avant rotation)
 
     // D = N · P où P est la position sur le plan
     private float distance;
     
-    public Vector3 Normal => normal.normalized;
+    // Retourne la normale en coordonnées monde (applique la rotation du transform)
+    public Vector3 Normal => (transform.rotation * localNormal).normalized;
     public float Distance => distance;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         // D = N·P où P est la position du plan
-        distance = Vector3.Dot(normal.normalized, transform.position);
+        distance = Vector3.Dot(Normal, transform.position);
     }
 
     // Update is called once per frame
     void Update()
     {
         if (!isStatic)
-            distance = Vector3.Dot(normal.normalized, transform.position);
+            distance = Vector3.Dot(Normal, transform.position);
     }
 
     public override CollisionInfo TestCollision(CollisionShape other)
@@ -58,13 +59,13 @@ public class PlaneCollisionShape : CollisionShape
 
     public bool IsAbovePlane(Vector3 point)
     {
-        float signedDistance = Vector3.Dot(point, normal.normalized) - distance;
+        float signedDistance = Vector3.Dot(point, Normal) - distance;
         return signedDistance > 0;
     }
 
     public float SignedDistanceToPoint(Vector3 point)
     {
-        return Vector3.Dot(point, normal.normalized) - distance;
+        return Vector3.Dot(point, Normal) - distance;
     }
 
     protected override void OnDrawGizmos()
@@ -76,7 +77,7 @@ public class PlaneCollisionShape : CollisionShape
         Vector3 center = transform.position;
         float size = 50f;
         
-        Vector3 up = normal.normalized;
+        Vector3 up = Normal;
         Vector3 right = Vector3.Cross(up, Vector3.forward);
         if (right.sqrMagnitude < PhysicsConstants.NORMAL_EPSILON)
         {
@@ -96,6 +97,6 @@ public class PlaneCollisionShape : CollisionShape
         Gizmos.DrawLine(p4, p1);
         
         Gizmos.color = Color.blue;
-        Gizmos.DrawRay(center, normal.normalized * 2f);
+        Gizmos.DrawRay(center, Normal * 2f);
     }
 }
