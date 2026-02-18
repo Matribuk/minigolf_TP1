@@ -106,9 +106,10 @@ public class BallController : MonoBehaviour
 
             if (collision.otherShape.IsTrigger)
             {
+                Debug.Log($"[BallController] TRIGGER collision detected with: {collision.otherShape.gameObject.name}, Tag: {collision.otherShape.gameObject.tag}");
                 HandleTrigger(collision);
-                // Pour les triggers, on continue sans changer la vélocité
-                remainingTime -= collision.timeOfImpact * remainingTime;
+                // Pour les triggers, on ne consomme PAS le temps du frame - juste un événement
+                Debug.Log($"[BallController] After trigger - remainingTime: {remainingTime}, Physics moving: {physics.IsMoving}");
                 continue;
             }
 
@@ -227,12 +228,27 @@ public class BallController : MonoBehaviour
     {
         GameObject triggerObject = collision.otherShape.gameObject;
         
-        if (triggerObject.CompareTag("Hole"))
+        Debug.Log($"[HandleTrigger] Called for: {triggerObject.name}, Tag: '{triggerObject.tag}'");
+        
+        if (triggerObject.CompareTag("Finish"))
+        {
+            Debug.Log("[HandleTrigger] Tag is 'Finish' - calling OnBallInHole()");
             OnBallInHole();
+        }
         else if (triggerObject.CompareTag("Water"))
+        {
+            Debug.Log("[HandleTrigger] Tag is 'Water' - calling OnBallInWater()");
             OnBallInWater();
+        }
         else if (triggerObject.CompareTag("Boost"))
+        {
+            Debug.Log("[HandleTrigger] Tag is 'Boost' - calling OnBallInBoost()");
             OnBallInBoost(collision.normal);
+        }
+        else
+        {
+            Debug.Log($"[HandleTrigger] Unrecognized tag: '{triggerObject.tag}' - doing nothing");
+        }
         
         if (showDebugInfo)
             Debug.Log($"[BallController] Trigger: {triggerObject.name}");

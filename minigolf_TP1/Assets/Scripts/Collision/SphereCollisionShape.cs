@@ -17,6 +17,9 @@ public class SphereCollisionShape : CollisionShape
             case CollisionShapeType.Box:
                 return TestSphereVsBox(this, (BoxCollisionShape)other);
             
+            case CollisionShapeType.Cylinder:
+                return TestSphereVsCylinder(this, (CylinderCollisionShape)other);
+            
             case CollisionShapeType.Plane:
                 return TestSphereVsPlane(this, (PlaneCollisionShape)other);
             
@@ -42,6 +45,9 @@ public class SphereCollisionShape : CollisionShape
 
             case CollisionShapeType.Box:
                 return TestSphereVsBoxCCD(this, (BoxCollisionShape)other, velocity, deltaTime);
+
+            case CollisionShapeType.Cylinder:
+                return TestSphereVsCylinderCCD(this, (CylinderCollisionShape)other, velocity, deltaTime);
 
             case CollisionShapeType.Plane:
                 return TestSphereVsPlaneCCD(this, (PlaneCollisionShape)other, velocity, deltaTime);
@@ -256,6 +262,9 @@ public class SphereCollisionShape : CollisionShape
             case CollisionShapeType.Box:
                 return TestSphereVsBoxAtPosition(this, (BoxCollisionShape)other, centerPosition);
 
+            case CollisionShapeType.Cylinder:
+                return TestSphereVsCylinderAtPosition(this, (CylinderCollisionShape)other, centerPosition);
+
             case CollisionShapeType.Plane:
                 return TestSphereVsPlaneAtPosition(this, (PlaneCollisionShape)other, centerPosition);
 
@@ -418,6 +427,153 @@ public class SphereCollisionShape : CollisionShape
         Vector3 normal = planeNormal;
 
         return CollisionInfo.CreateCollision(contactPoint, normal, depth, plane);
+    }
+
+    private static CollisionInfo TestSphereVsCylinder(SphereCollisionShape sphere, CylinderCollisionShape cylinder)
+    {
+        Vector3 sphereCenter = sphere.GetCenter();
+        Vector3 cylinderCenter = cylinder.GetCenter();
+        
+        // Project sphere center onto cylinder axis
+        Vector3 toSphere = sphereCenter - cylinderCenter;
+        float projectionOnAxis = Vector3.Dot(toSphere, Vector3.up);
+        
+        // Clamp to cylinder height
+        float clampedProjection = Mathf.Clamp(projectionOnAxis, -cylinder.Height * 0.5f, cylinder.Height * 0.5f);
+        
+        // Closest point on cylinder axis
+        Vector3 closestPointOnAxis = cylinderCenter + Vector3.up * clampedProjection;
+        
+        // Vector from closest point to sphere center
+        Vector3 toSphereSide = sphereCenter - closestPointOnAxis;
+        toSphereSide.y = 0; // Only horizontal component
+        
+        float horizontalDistance = toSphereSide.magnitude;
+        float minDistance = cylinder.Radius + sphere.Radius;
+        
+        if (horizontalDistance > minDistance)
+            return CollisionInfo.NoCollision();
+        
+        // Check if we need to handle edge collision (sphere beyond cylinder caps)
+        bool beyondTop = projectionOnAxis > cylinder.Height * 0.5f;
+        bool beyondBottom = projectionOnAxis < -cylinder.Height * 0.5f;
+        
+        if (beyondTop || beyondBottom)
+        {
+            Vector3 edgeCenter = beyondTop ? cylinder.TopCenter : cylinder.BottomCenter;
+            Vector3 sphereToEdge = sphereCenter - edgeCenter;
+            float distToEdge = sphereToEdge.magnitude;
+            
+            if (distToEdge > sphere.Radius)
+                return CollisionInfo.NoCollision();
+            
+            // Collision with edge
+            float depth = sphere.Radius - distToEdge;
+            Vector3 normal = distToEdge > PhysicsConstants.DISTANCE_EPSILON ? sphereToEdge / distToEdge : Vector3.up;
+            Vector3 contactPoint = edgeCenter + normal * cylinder.Radius;
+            
+            return CollisionInfo.CreateCollision(contactPoint, normal, depth, cylinder);
+        }
+        
+        // Collision with side of cylinder
+        float depth2 = minDistance - horizontalDistance;
+        Vector3 normal2 = horizontalDistance > PhysicsConstants.DISTANCE_EPSILON ? toSphereSide / horizontalDistance : Vector3.right;
+        Vector3 contactPoint2 = closestPointOnAxis + normal2 * cylinder.Radius;
+        
+        return CollisionInfo.CreateCollision(contactPoint2, normal2, depth2, cylinder);
+    }
+
+    private static CollisionInfo TestSphereVsCylinderCCD(SphereCollisionShape sphere, CylinderCollisionShape cylinder, Vector3 velocity, float deltaTime)
+    {
+        Vector3 sphereCenter = sphere.GetCenter();
+        float sphereRadius = sphere.Radius;
+
+        // First check if already in collision
+        CollisionInfo currentCollision = TestSphereVsCylinder(sphere, cylinder);
+        if (currentCollision.hasCollision)
+        {
+            currentCollision.timeOfImpact = 0f;
+            return currentCollision;
+        }
+
+        // For cylinders, use a simplified approach: sample points along the trajectory
+        int samples = 5;
+        float smallestToi = float.MaxValue;
+        CollisionInfo closestCollision = CollisionInfo.NoCollision();
+
+        for (int i = 1; i <= samples; i++)
+        {
+            float t = (float)i / samples;
+            Vector3 samplePos = sphereCenter + velocity * (deltaTime * t);
+            
+            // Temporarily move sphere for sampling
+            Vector3 tempPos = sphere.transform.position;
+            sphere.transform.position = samplePos;
+            CollisionInfo sampleCollision = TestSphereVsCylinder(sphere, cylinder);
+            sphere.transform.position = tempPos;
+            
+            if (sampleCollision.hasCollision && t < smallestToi)
+            {
+                smallestToi = t;
+                sampleCollision.timeOfImpact = t;
+                closestCollision = sampleCollision;
+            }
+        }
+
+        return closestCollision;
+    }
+
+    private static CollisionInfo TestSphereVsCylinderAtPosition(SphereCollisionShape sphere, CylinderCollisionShape cylinder, Vector3 sphereCenterPosition)
+    {
+        Vector3 cylinderCenter = cylinder.GetCenter();
+        
+        // Project sphere center onto cylinder axis
+        Vector3 toSphere = sphereCenterPosition - cylinderCenter;
+        float projectionOnAxis = Vector3.Dot(toSphere, Vector3.up);
+        
+        // Clamp to cylinder height
+        float clampedProjection = Mathf.Clamp(projectionOnAxis, -cylinder.Height * 0.5f, cylinder.Height * 0.5f);
+        
+        // Closest point on cylinder axis
+        Vector3 closestPointOnAxis = cylinderCenter + Vector3.up * clampedProjection;
+        
+        // Vector from closest point to sphere center
+        Vector3 toSphereSide = sphereCenterPosition - closestPointOnAxis;
+        toSphereSide.y = 0; // Only horizontal component
+        
+        float horizontalDistance = toSphereSide.magnitude;
+        float minDistance = cylinder.Radius + sphere.Radius;
+        
+        if (horizontalDistance > minDistance)
+            return CollisionInfo.NoCollision();
+        
+        // Check if we need to handle edge collision (sphere beyond cylinder caps)
+        bool beyondTop = projectionOnAxis > cylinder.Height * 0.5f;
+        bool beyondBottom = projectionOnAxis < -cylinder.Height * 0.5f;
+        
+        if (beyondTop || beyondBottom)
+        {
+            Vector3 edgeCenter = beyondTop ? cylinder.TopCenter : cylinder.BottomCenter;
+            Vector3 sphereToEdge = sphereCenterPosition - edgeCenter;
+            float distToEdge = sphereToEdge.magnitude;
+            
+            if (distToEdge > sphere.Radius)
+                return CollisionInfo.NoCollision();
+            
+            // Collision with edge
+            float depth = sphere.Radius - distToEdge;
+            Vector3 normal = distToEdge > PhysicsConstants.DISTANCE_EPSILON ? sphereToEdge / distToEdge : Vector3.up;
+            Vector3 contactPoint = edgeCenter + normal * cylinder.Radius;
+            
+            return CollisionInfo.CreateCollision(contactPoint, normal, depth, cylinder);
+        }
+        
+        // Collision with side of cylinder
+        float depth2 = minDistance - horizontalDistance;
+        Vector3 normal2 = horizontalDistance > PhysicsConstants.DISTANCE_EPSILON ? toSphereSide / horizontalDistance : Vector3.right;
+        Vector3 contactPoint2 = closestPointOnAxis + normal2 * cylinder.Radius;
+        
+        return CollisionInfo.CreateCollision(contactPoint2, normal2, depth2, cylinder);
     }
 
     protected override void OnDrawGizmos()

@@ -25,6 +25,14 @@ public class BoxCollisionShape : CollisionShape
             case CollisionShapeType.Box:
                 return TestBoxVsBox(this, (BoxCollisionShape)other);
             
+            case CollisionShapeType.Cylinder:
+                CollisionInfo cylInfo = other.TestCollision(this);
+                if (cylInfo.hasCollision) {
+                    cylInfo.normal = -cylInfo.normal;
+                    cylInfo.otherShape = this;
+                }
+                return cylInfo;
+            
             case CollisionShapeType.Plane:
                 return CollisionInfo.NoCollision();
             

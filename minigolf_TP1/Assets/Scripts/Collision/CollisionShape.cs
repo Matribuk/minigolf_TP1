@@ -29,5 +29,6 @@ public enum CollisionShapeType
 {
     Sphere,
     Box,
+    Cylinder,
     Plane
 }
