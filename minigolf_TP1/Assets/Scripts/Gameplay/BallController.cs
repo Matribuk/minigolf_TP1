@@ -150,9 +150,32 @@ public class BallController : MonoBehaviour
                 }
             }
 
-            // Rebond
-            physics.Reflect(collision.normal);
-            totalBouncesThisShot++;
+            // Collision response: bounce vs slide based on surface angle
+            // If Y > 0.7, it's a slope - slide along it instead of bouncing
+            bool isSlope = collision.normal.y > 0.7f;
+            
+            if (isSlope)
+            {
+                // Slide along slope: remove velocity component perpendicular to surface
+                Vector3 velocity = physics.Velocity;
+                float perpComponent = Vector3.Dot(velocity, collision.normal);
+                
+                // Remove the perpendicular component (pushes ball out of surface)
+                Vector3 slideVelocity = velocity - collision.normal * perpComponent;
+                physics.SetVelocity(slideVelocity);
+                
+                if (showDebugInfo)
+                    Debug.Log($"[BallController] Sliding on slope - velocity changed from {velocity} to {slideVelocity}");
+            }
+            else
+            {
+                // Bounce off wall
+                physics.Reflect(collision.normal);
+                totalBouncesThisShot++;
+                
+                if (showDebugInfo)
+                    Debug.Log($"[BallController] Bounced off wall");
+            }
 
             // Temps restant après cette collision
             remainingTime -= collision.timeOfImpact * remainingTime;

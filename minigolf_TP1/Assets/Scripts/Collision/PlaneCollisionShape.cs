@@ -2,14 +2,22 @@ using UnityEngine;
 
 public class PlaneCollisionShape : CollisionShape
 {
-    [Header("Plane Properties")]
-    [SerializeField] private Vector3 localNormal = Vector3.up;           // Normale locale du plan (avant rotation)
+    // The local normal is always up in the plane's local space
+    // The actual world normal is calculated from the transform's rotation
 
     // D = N · P où P est la position sur le plan
     private float distance;
     
     // Retourne la normale en coordonnées monde (applique la rotation du transform)
-    public Vector3 Normal => (transform.rotation * localNormal).normalized;
+    // Local normal est toujours Vector3.up, rotation vient du Transform
+    public Vector3 Normal 
+    { 
+        get 
+        {
+            Vector3 worldNormal = (transform.rotation * Vector3.up).normalized;
+            return worldNormal;
+        }
+    }
     public float Distance => distance;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -17,6 +25,7 @@ public class PlaneCollisionShape : CollisionShape
     {
         // D = N·P où P est la position du plan
         distance = Vector3.Dot(Normal, transform.position);
+        Debug.Log($"[PlaneCollisionShape] Initialized - Rotation: {transform.eulerAngles}, Normal: {Normal}, Distance: {distance}");
     }
 
     // Update is called once per frame
