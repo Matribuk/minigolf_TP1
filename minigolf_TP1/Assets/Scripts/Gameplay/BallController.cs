@@ -26,6 +26,7 @@ public class BallController : MonoBehaviour
     
     private int totalCollisionsThisFrame = 0;
     private int totalBouncesThisShot = 0;
+    private int shotsTaken = 0;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -364,6 +365,7 @@ public class BallController : MonoBehaviour
 
             physics.SetGravityEnabled(true);
             physics.AddImpulse(hitDirection * hitPower);
+            shotsTaken++;
             return;
         }
         // down arrow
@@ -373,6 +375,7 @@ public class BallController : MonoBehaviour
 
             physics.SetGravityEnabled(true);
             physics.AddImpulse(hitDirection * hitPower);
+            shotsTaken++;
             return;
         }
         // left arrow
@@ -382,6 +385,7 @@ public class BallController : MonoBehaviour
 
             physics.SetGravityEnabled(true);
             physics.AddImpulse(hitDirection * hitPower);
+            shotsTaken++;
             return;
         }
         // right arrow
@@ -391,30 +395,57 @@ public class BallController : MonoBehaviour
 
             physics.SetGravityEnabled(true);
             physics.AddImpulse(hitDirection * hitPower);
+            shotsTaken++;
             return;
         }
     }
 
     void OnGUI()
     {
-        if (!showDebugInfo) return;
+        // Win screen HUD
+        if (hasWon)
+        {
+            GUILayout.BeginArea(new Rect(Screen.width * 0.5f - 200, Screen.height * 0.5f - 150, 400, 300));
+            GUILayout.BeginVertical("box");
+            
+            GUILayout.Label("🎉 BRAVO! 🎉", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 24, fontStyle = FontStyle.Bold });
+            GUILayout.Space(20);
+            
+            GUILayout.Label("Vous avez fini le parcours!", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 16 });
+            GUILayout.Space(10);
+            
+            GUILayout.Label($"Nombre de tirs: {shotsTaken}", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 14 });
+            GUILayout.Space(20);
+            
+            GUILayout.Label("Press R to restart", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 14, fontStyle = FontStyle.Italic });
+            
+            GUILayout.EndVertical();
+            GUILayout.EndArea();
+            shotsTaken = 0;
+            return;
+        }
+        
         
         GUILayout.BeginArea(new Rect(10, 10, 300, 280));
-        GUILayout.Label($"Vitesse: {physics.Speed:F2} m/s");
-        GUILayout.Label($"En mouvement: {physics.IsMoving}");
-        GUILayout.Label($"Collisions ce frame: {totalCollisionsThisFrame}");
-        GUILayout.Label($"Rebonds total: {totalBouncesThisShot}");
-        GUILayout.Label($"Victoire: {hasWon}");
+        GUILayout.Label($"Nombre de tir: {shotsTaken}");
         GUILayout.Label("");
         
-        GUILayout.Label($"Hit Power: {hitPower:F1}");
-        GUILayout.Label("Puissance (Drag to adjust):");
-        hitPower = GUILayout.HorizontalSlider(hitPower, 1f, 9f, GUILayout.Width(250));
+        GUILayout.Label($"Puissance: {hitPower:F1}");
+        GUILayout.Label("Puissance (Glissez to adjust):");
+        hitPower = GUILayout.HorizontalSlider(hitPower, 0f, 9f, GUILayout.Width(250));
         
         GUILayout.Label("");
         GUILayout.Label("↑↓←→ = Directions");
         GUILayout.Label("R = Reset");
-        GUILayout.Label("D = Toggle Debug");
+        // Debug HUD
+        if (showDebugInfo) {
+            GUILayout.Label($"Vitesse: {physics.Speed:F2} m/s");
+            GUILayout.Label($"En mouvement: {physics.IsMoving}");
+            GUILayout.Label($"Collisions / frame: {totalCollisionsThisFrame}");
+            GUILayout.Label($"Rebonds total: {totalBouncesThisShot}");
+            GUILayout.Label("");
+            GUILayout.Label("D = Toggle Debug");
+        }
         GUILayout.EndArea();
     }
 }
